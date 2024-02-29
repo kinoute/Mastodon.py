@@ -57,6 +57,6 @@ def status3(api2):
 @pytest.fixture(scope="module")
 def vcr_config():
     return dict(
-            match_on = ['method', 'path', 'query', 'body'],
-            decode_compressed_response = True
-            )
+        match_on = ['method', 'path', 'query', 'body'],
+        decode_compressed_response = True
+    )

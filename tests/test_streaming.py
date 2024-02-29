@@ -1,4 +1,3 @@
-import six
 import pytest
 import itertools
 from mastodon.streaming import StreamListener, CallbackStreamListener
@@ -20,8 +19,12 @@ def vcr(vcr):
     vcr.match_on = ['path']
     return vcr
 
-"""
-# Needed for old vcrpy versions, but not amy more!
+@pytest.fixture(scope='module')
+def vcr_config():
+    return {
+        "match_on": ["path"],
+    }
+
 def patch_streaming():
     # For monkeypatching so we can make vcrpy better
     import vcr.stubs
@@ -55,7 +58,6 @@ def patch_streaming():
             args[0].real_connection.getresponse = fakeRealConnectionGetresponse
         return real_get_response(*args, **kwargs)
     vcr.stubs.VCRConnection.getresponse = fake_get_response
-"""
 
 def streaming_close():
     global real_connections
@@ -95,10 +97,13 @@ class Listener(StreamListener):
 
     def handle_stream_(self, lines):
         """Test helper to avoid littering all tests with six.b()."""
+        def six_b(s):
+            return s.encode("latin-1")
+
         class MockResponse():
             def __init__(self, data):
                 self.data = data
-                
+
             def iter_content(self, chunk_size):
                 for line in self.data:
                     for byte in line:
@@ -106,7 +111,7 @@ class Listener(StreamListener):
                         bytearr.append(byte)
                         yield(bytearr)
                     yield(b'\n')
-        return self.handle_stream(MockResponse(map(six.b, lines)))
+        return self.handle_stream(MockResponse(map(six_b, lines)))
 
 
 def test_heartbeat():
@@ -317,13 +322,17 @@ def test_multiline_payload():
     assert listener.updates == [{"foo": "bar"}]
 
 @pytest.mark.vcr(match_on=['path'])
+@pytest.mark.flaky(retries=10, delay=1)
 def test_stream_user_direct(api, api2, api3, vcr):
-    if sys.version_info >= (3, 10):
-        pytest.skip("Streaming tests flake on 3.10 on CI for some unclear reason")
+    patch_streaming()
+
+    # Be extra super paranoid
     vcr.match_on = ["path"]
 
     # Make sure we are in the right state to not receive updates from api2
+    time.sleep(1)
     user = api2.account_verify_credentials()
+    time.sleep(1)
     api.account_unfollow(user)
     time.sleep(2)
 
@@ -352,8 +361,11 @@ def test_stream_user_direct(api, api2, api3, vcr):
         vcr.match_on = ["path"]
         time.sleep(5)
         posted.append(api.status_post("only real cars respond."))
+        time.sleep(1)
         posted.append(api2.status_post("@mastodonpy_test beep beep I'm a jeep"))
+        time.sleep(1)
         posted.append(api2.status_post("on the internet, nobody knows you're a plane"))
+        time.sleep(1)
         posted.append(api.status_post("@mastodonpy_test_2 pssssst", visibility="direct"))
         time.sleep(1)
         posted.append(api3.status_post("@mastodonpy_test pssssst!", visibility="direct", in_reply_to_id=posted[-1]))
@@ -368,6 +380,7 @@ def test_stream_user_direct(api, api2, api3, vcr):
     t.start()
     
     stream = api.stream_user(listener, run_async=True)
+    time.sleep(1)
     stream2 = api.stream_direct(listener, run_async=True)
     time.sleep(25)
     stream.close()
@@ -387,15 +400,18 @@ def test_stream_user_direct(api, api2, api3, vcr):
     t.join()
     
 @pytest.mark.vcr(match_on=['path'])
+@pytest.mark.flaky(retries=10, delay=1)
 def test_stream_user_local(api, api2, vcr):
-    if sys.version_info >= (3, 10):
-        pytest.skip("Streaming tests flake on 3.10 on CI for some unclear reason")
+    patch_streaming()
 
     vcr.match_on = ["path"]
     # Make sure we are in the right state to not receive updates from api2
+    time.sleep(1)
     user = api2.account_verify_credentials()
+    time.sleep(1)
     api.account_unfollow(user)
-    
+    time.sleep(1)
+
     updates = []
     listener = CallbackStreamListener(
         local_update_handler=updates.append,
@@ -422,9 +438,11 @@ def test_stream_user_local(api, api2, vcr):
     t.join()
 
 @pytest.mark.vcr(match_on=['path'])
+@pytest.mark.flaky(retries=10, delay=1)
 def test_stream_direct(api, api2, vcr):
-    if sys.version_info >= (3, 10):
-        pytest.skip("Streaming tests flake on 3.10 on CI for some unclear reason")
+    time.sleep(1)
+    patch_streaming()
+    
     vcr.match_on = ["path"]
     conversations = []
     listener = CallbackStreamListener(

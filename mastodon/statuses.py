@@ -10,7 +10,7 @@ from mastodon.utility import api_version
 
 from mastodon.internals import Mastodon as Internals
 from mastodon.types import Status, IdType, ScheduledStatus, PreviewCard, Context, NonPaginatableList, Account,\
-                MediaAttachment, Poll, StatusSource
+                MediaAttachment, Poll, StatusSource, PaginatableList
 
 from typing import Union, Optional, List
 
@@ -81,10 +81,14 @@ class Mastodon(Internals):
     # Reading data: Scheduled statuses
     ###
     @api_version("2.7.0", "2.7.0", _DICT_VERSION_SCHEDULED_STATUS)
-    def scheduled_statuses(self) -> NonPaginatableList[ScheduledStatus]:
+    def scheduled_statuses(self, max_id: Optional[Union[Status, IdType, datetime]] = None, min_id: Optional[Union[Status, IdType, datetime]] = None, 
+                 since_id: Optional[Union[Status, IdType, datetime]] = None, limit: Optional[int] = None) -> PaginatableList[ScheduledStatus]:
         """
         Fetch a list of scheduled statuses
         """
+        max_id = self.__unpack_id(max_id)
+        min_id = self.__unpack_id(min_id)
+        since_id = self.__unpack_id(since_id)
         return self.__api_request('GET', '/api/v1/scheduled_statuses')
 
     @api_version("2.7.0", "2.7.0", _DICT_VERSION_SCHEDULED_STATUS)
@@ -199,15 +203,17 @@ class Mastodon(Internals):
         should be marked as sensitive, which hides it by default on the Mastodon
         web front-end.
 
-        The visibility parameter is a string value and accepts any of:
-        'direct' - post will be visible only to mentioned users
-        'private' - post will be visible only to followers
-        'unlisted' - post will be public but not appear on the public timeline
-        'public' - post will be public
+        The `visibility` parameter is a string value and accepts any of:
+        
+        * ``'direct'`` - post will be visible only to **mentioned users**, known in Mastodon's UI as "Mentioned users only"
+        * ``'private'`` - post will be visible only to **followers**, known in Mastodon's UI as "Followers only"
+        * ``'unlisted'`` - post will be public but **will not appear** on the public timelines
+        * ``'public'`` - post will be public and **will appear** on public timelines
 
-        If not passed in, visibility defaults to match the current account's
+\
+        If not passed in, `visibility` defaults to match the current account's
         default-privacy setting (starting with Mastodon version 1.6) or its
-        locked setting - private if the account is locked, public otherwise
+        locked setting - ``'private'`` if the account is locked, ``'public'`` otherwise
         (for Mastodon versions lower than 1.6).
 
         The `spoiler_text` parameter is a string to be shown as a warning before
